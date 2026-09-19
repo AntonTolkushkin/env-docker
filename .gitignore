@@ -21,3 +21,6 @@
 .vscode/
 .DS_Store
 Thumbs.db
+
+#ssl
+confs/nginx/certs/finntrail.local/*.pem

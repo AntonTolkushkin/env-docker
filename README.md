@@ -193,6 +193,3 @@ sudo ./scripts/fix-permissions.sh
 
 Не коммитьте `.env`, файлы сайта, дампы БД и архивы. Они уже добавлены в
 `.gitignore`.
-
-Порядок наложения готового архива на существующий форк и команды для коммита:
-[docs/COMMIT_TO_FORK.md](docs/COMMIT_TO_FORK.md).

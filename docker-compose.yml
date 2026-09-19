@@ -21,14 +21,6 @@ x-php-volumes: &php-volumes
     source: ./confs/php84/etc
     target: /usr/local/etc
     read_only: true
-  - type: bind
-    source: ./confs/php/project-local.ini
-    target: /usr/local/etc/php/conf.d/zz-project.ini
-    read_only: true
-  - type: bind
-    source: ./confs/php/fpm-local.conf
-    target: /usr/local/etc/php-fpm.d/zz-project.conf
-    read_only: true
   - bxtemp_data:/opt/.bx_temp
   - msmtp_data:/opt/msmtp
   - browscap_data:/opt/browscap
@@ -67,7 +59,6 @@ services:
       retries: 20
       start_period: 45s
     stop_grace_period: 1m
-
   redis:
     <<: *service-defaults
     image: ${REDIS_IMAGE:-redis:8.2.9-alpine}
@@ -75,9 +66,14 @@ services:
       TZ: ${TZ:-Europe/Moscow}
       REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required; run the init script}
     command:
-      - /bin/sh
-      - -ec
-      - exec redis-server --appendonly yes --save 60 1000 --requirepass "$${REDIS_PASSWORD}"
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --save
+      - "60"
+      - "1000"
+      - --requirepass
+      - "${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}"
     volumes:
       - redis_data:/data
     cap_drop:

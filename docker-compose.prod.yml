@@ -22,6 +22,9 @@ services:
         read_only: true
 
   nginx:
+    ports: !override
+      - "80:80"
+      - "443:443"
     networks:
       - backend
       - traefik
