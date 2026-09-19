@@ -41,6 +41,7 @@ try {
     Invoke-Compose -ComposeArguments @("config", "--quiet")
     Invoke-Compose -ComposeArguments @("pull")
     Invoke-Compose -ComposeArguments @("run", "--rm", "--no-deps", "php", "php-fpm", "-t")
+    Invoke-Compose -ComposeArguments @("up", "-d", "mysql", "redis", "php")
     Invoke-Compose -ComposeArguments @("run", "--rm", "--no-deps", "nginx", "nginx", "-t")
     Invoke-Compose -ComposeArguments @("up", "-d", "--remove-orphans")
     Invoke-Compose -ComposeArguments @("ps")
