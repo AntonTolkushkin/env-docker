@@ -1,10 +1,14 @@
-# Как перенести комплект в существующий форк
+# Как применить готовый архив к форку
 
-Архив можно распаковать как самостоятельный deploy-каталог. Рядом с каталогом в
-архиве также лежит `env-docker-ready.patch` — это самый точный способ перенести
-все изменения, включая удаление старых env-файлов.
+Архив содержит полный runtime-комплект и patch относительно актуального `main`
+на момент сборки. Каталог `sources/` не дублируется в архиве: Compose использует
+готовые образы, а существующий каталог `sources/` в форке нужно сохранить.
 
-Используйте чистую рабочую копию:
+Старый каталог `confs/nginx/certs/example.com` содержал приватный тестовый ключ.
+Его содержимое намеренно не переносится даже в patch: каталог нужно удалить
+отдельной командой ниже.
+
+## Вариант 1: распаковка поверх клона
 
 ```bash
 git clone https://github.com/AntonTolkushkin/env-docker.git
@@ -13,54 +17,48 @@ git switch main
 git pull --ff-only
 ```
 
-Примените patch из распакованного архива и проверьте изменения:
+Распакуйте содержимое каталога `env-docker-ready` в корень репозитория с заменой
+одноимённых файлов. Удалите файлы, которых больше нет в комплекте:
+
+```bash
+git rm -r --ignore-unmatch \
+  README-REDIS-FIX.md \
+  confs/nginx/certs/example.com \
+  confs/nginx/ssl/finntrail.ru.conf \
+  confs/php/fpm-local.conf \
+  confs/php/project-local.ini \
+  www/.gitkeep
+```
+
+Затем проверьте:
+
+```bash
+git status --short
+git diff --check
+git diff --stat
+```
+
+## Вариант 2: patch
+
+Из корня чистой рабочей копии:
 
 ```bash
 git apply --index /path/to/env-docker-ready.patch
-git status
+git rm -r --ignore-unmatch confs/nginx/certs/example.com
 git diff --cached --check
 ```
 
-После этого можно сразу перейти к коммиту ниже. Альтернативный вариант —
-распаковать содержимое каталога `env-docker-ready` прямо в корень клона.
+## Коммит
 
-При распаковке файлов в корень клона с заменой удалите
-старые отслеживаемые env-файлы универсального dev-стека:
-
-```bash
-git rm --ignore-unmatch \
-  .env \
-  .env_mysql \
-  .env_php \
-  .env_postgresql \
-  .env_push \
-  .env_push_pub \
-  .env_push_sub \
-  .env_redis \
-  .env_ssl
-```
-
-В Windows PowerShell:
-
-```powershell
-git rm --ignore-unmatch .env .env_mysql .env_php .env_postgresql .env_push .env_push_pub .env_push_sub .env_redis .env_ssl
-```
-
-Проверьте и закоммитьте:
+До `git add` убедитесь, что в статус не попали `.env`, сертификаты, ключи,
+`www/public_html` или резервные копии.
 
 ```bash
-git status
-git diff --check
 git add .
+git diff --cached --check
 git diff --cached --stat
-git commit -m "Add local and production Bitrix Docker stack"
+git commit -m "Fix local HTTPS and production Docker deployment"
 git push origin main
 ```
 
-Не запускайте `init-env` до `git rm`: созданный `.env` содержит реальные секреты
-и не должен попасть в индекс. После коммита создайте локальный `.env` командой из
-README; `.gitignore` уже исключает его.
-
-Каталог `sources/` из исходного форка можно оставить без изменений. Для запуска
-он не нужен, потому что Compose использует опубликованные образы, но его удаление
-лучше оформить отдельным коммитом, если вы хотите уменьшить размер репозитория.
+После коммита выполните установку нужного режима по новому README.

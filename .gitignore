@@ -6,7 +6,9 @@
 
 # Site data is deployed separately from infrastructure code
 /www/*
-!/www/.gitkeep
+!/www/public_html/
+/www/public_html/*
+!/www/public_html/.gitkeep
 
 # Backups must never be committed
 /backups/*
@@ -22,5 +24,6 @@
 .DS_Store
 Thumbs.db
 
-#ssl
-confs/nginx/certs/finntrail.local/*.pem
+# Local and production private keys are provisioned outside Git.
+/confs/nginx/certs/*
+!/confs/nginx/certs/.gitkeep

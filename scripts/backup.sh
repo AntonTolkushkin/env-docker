@@ -45,15 +45,17 @@ FILES_FILE="$BACKUP_DIR/www-$TIMESTAMP.tar.gz"
 mkdir -p "$BACKUP_DIR"
 cd "$ROOT_DIR"
 
-docker compose exec -T mysql sh -ec \
+# Expanded by the shell inside the MySQL container.
+# shellcheck disable=SC2016
+"$ROOT_DIR/scripts/compose.sh" exec -T mysql sh -ec \
     'exec mysqldump --single-transaction --quick --routines --triggers --events --hex-blob --no-tablespaces -uroot -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE"' \
     | gzip -9 > "$DB_FILE"
 
 tar \
-    --exclude='./bitrix/cache/*' \
-    --exclude='./bitrix/managed_cache/*' \
-    --exclude='./bitrix/stack_cache/*' \
-    --exclude='./upload/tmp/*' \
+    --exclude='./public_html/bitrix/cache/*' \
+    --exclude='./public_html/bitrix/managed_cache/*' \
+    --exclude='./public_html/bitrix/stack_cache/*' \
+    --exclude='./public_html/upload/tmp/*' \
     -C "$SITE_DIR" -czf "$FILES_FILE" .
 
 if command -v sha256sum >/dev/null 2>&1; then

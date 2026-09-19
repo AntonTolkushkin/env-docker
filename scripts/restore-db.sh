@@ -30,15 +30,19 @@ if [ "$ASSUME_YES" -ne 1 ]; then
 fi
 
 cd "$ROOT_DIR"
-docker compose up -d mysql
+"$ROOT_DIR/scripts/compose.sh" up -d mysql
 
 case "$DUMP_FILE" in
     *.gz)
-        gzip -dc "$DUMP_FILE" | docker compose exec -T mysql sh -ec \
+        # Expanded by the shell inside the MySQL container.
+        # shellcheck disable=SC2016
+        gzip -dc "$DUMP_FILE" | "$ROOT_DIR/scripts/compose.sh" exec -T mysql sh -ec \
             'exec mysql -uroot -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE"'
         ;;
     *)
-        docker compose exec -T mysql sh -ec \
+        # Expanded by the shell inside the MySQL container.
+        # shellcheck disable=SC2016
+        "$ROOT_DIR/scripts/compose.sh" exec -T mysql sh -ec \
             'exec mysql -uroot -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE"' < "$DUMP_FILE"
         ;;
 esac

@@ -1,5 +1,7 @@
 services:
   php:
+    environment:
+      BITRIX_ENV_TYPE: production
     volumes:
       - type: bind
         source: ./confs/php/project-production.ini
@@ -11,6 +13,8 @@ services:
         read_only: true
 
   cron:
+    environment:
+      BITRIX_ENV_TYPE: production
     volumes:
       - type: bind
         source: ./confs/php/project-production.ini
@@ -22,9 +26,8 @@ services:
         read_only: true
 
   nginx:
-    ports: !override
-      - "80:80"
-      - "443:443"
+    volumes:
+      - ./confs/nginx/sites/finntrail.ru.conf:/etc/nginx/conf.d/default.conf:ro
     networks:
       - backend
       - traefik

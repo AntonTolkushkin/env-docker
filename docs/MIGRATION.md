@@ -29,8 +29,8 @@
 Отредактируйте `.env`, создайте каталоги из README и запустите только хранилища:
 
 ```bash
-docker compose up -d mysql redis
-docker compose ps
+./scripts/compose.sh up -d mysql redis
+./scripts/compose.sh ps
 ```
 
 ## 3. Первичное копирование файлов
@@ -39,7 +39,7 @@ docker compose ps
 
 ```bash
 rsync -aHAX --numeric-ids --info=progress2 \
-  old-server:/path/to/document-root/ /srv/bitrix/www/
+  old-server:/path/to/document-root/ /srv/bitrix/www/public_html/
 ```
 
 Не копируйте старые системные сокеты и временные кеши. После копирования:
@@ -118,9 +118,9 @@ PHP-сессии используют Redis database `1`, поэтому кеш�
 Проверяйте loopback-порт с корректным Host:
 
 ```bash
-curl -I -H 'Host: example.com' http://127.0.0.1:8588/
-docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
-docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=200 nginx php mysql
+curl -I -H 'Host: finntrail.ru' http://127.0.0.1:8588/
+./scripts/compose.sh ps
+./scripts/compose.sh logs --tail=200 nginx php mysql
 ```
 
 Затем временно пропишите новый IP в локальном `hosts` на рабочем компьютере и

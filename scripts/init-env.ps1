@@ -1,6 +1,7 @@
 param(
     [ValidateSet("Local", "Production")]
-    [string]$Mode = "Local"
+    [string]$Mode = "Local",
+    [switch]$SkipLocalCertificate
 )
 
 $ErrorActionPreference = "Stop"
@@ -32,8 +33,14 @@ $content = $content -replace '(?m)^REDIS_PASSWORD=.*$', ("REDIS_PASSWORD=" + (Ne
 [System.IO.File]::WriteAllText($Target, $content, [System.Text.UTF8Encoding]::new($false))
 
 if ($Mode -eq "Local") {
-    New-Item -ItemType Directory -Force -Path (Join-Path $RootDir "www") | Out-Null
+    New-Item -ItemType Directory -Force -Path (Join-Path $RootDir "www\public_html") | Out-Null
     New-Item -ItemType Directory -Force -Path (Join-Path $RootDir "backups") | Out-Null
+    if (-not $SkipLocalCertificate) {
+        & (Join-Path $PSScriptRoot "setup-local-cert.ps1") -ProjectRoot $RootDir
+        if ($LASTEXITCODE -ne 0) {
+            throw "Local certificate setup failed."
+        }
+    }
 }
 
 Write-Host "Created $Target for $Mode mode."

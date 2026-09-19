@@ -47,7 +47,10 @@ replace_value REDIS_PASSWORD "$(openssl rand -hex 24)"
 chmod 600 "$TARGET" 2>/dev/null || true
 
 if [ "$MODE" = "local" ]; then
-    mkdir -p "$ROOT_DIR/www" "$ROOT_DIR/backups"
+    mkdir -p "$ROOT_DIR/www/public_html" "$ROOT_DIR/backups"
+    if [ "${SKIP_LOCAL_CERT:-0}" != "1" ]; then
+        "$ROOT_DIR/scripts/setup-local-cert.sh"
+    fi
 fi
 
 echo "Created $TARGET for $MODE mode."
