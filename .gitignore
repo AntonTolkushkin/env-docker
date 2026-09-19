@@ -1,0 +1,23 @@
+# Secrets and machine-specific settings
+.env
+.env.*
+!.env.example
+!.env.production.example
+
+# Site data is deployed separately from infrastructure code
+/www/*
+!/www/.gitkeep
+
+# Backups must never be committed
+/backups/*
+!/backups/.gitkeep
+*.sql
+*.sql.gz
+*.tar.gz
+*.zip
+
+# Local tooling
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

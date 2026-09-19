@@ -1,0 +1,9 @@
+.git
+.env
+www
+backups
+sources
+*.sql
+*.sql.gz
+*.tar.gz
+*.zip
