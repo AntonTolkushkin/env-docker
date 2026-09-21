@@ -56,6 +56,19 @@ powershell -ExecutionPolicy Bypass -File .\scripts\local-up.ps1
 ./scripts/compose.sh up -d --force-recreate nginx
 ```
 
+Если предыдущий `init-env.sh local` завершился ошибкой сертификата, в старой
+версии скрипта мог остаться `.env`. После обновления не удаляйте данные Docker:
+
+```bash
+./scripts/setup-local-cert.sh
+ls -l confs/nginx/certs/finntrail.local/{fullchain.pem,privkey.pem}
+./scripts/local-up.sh
+```
+
+Для полностью чистой повторной инициализации удалите только незакоммиченный
+`.env`, затем снова выполните `./scripts/init-env.sh local`. Обновлённый скрипт
+сам удаляет созданный `.env`, если настройка сертификата завершается ошибкой.
+
 Файлы local находятся в `www/public_html`.
 
 ---

@@ -24,6 +24,14 @@ if is_wsl; then
         -ProjectRoot "$WINDOWS_ROOT" \
         -Domain "$DOMAIN"
 
+    if [ ! -s "$CERT_FILE" ] || [ ! -s "$KEY_FILE" ]; then
+        echo "Certificate setup finished, but the expected files were not created:" >&2
+        echo "  $CERT_FILE" >&2
+        echo "  $KEY_FILE" >&2
+        echo "Run ./scripts/setup-local-cert.sh again and check the PowerShell/UAC error." >&2
+        exit 1
+    fi
+
     # The Nginx image runs as a non-root user and must be able to read the key.
     chmod 0644 "$CERT_FILE" "$KEY_FILE"
     echo "Local certificate configured for WSL + Windows."

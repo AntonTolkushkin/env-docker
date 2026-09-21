@@ -26,6 +26,21 @@ if [ -e "$TARGET" ]; then
     exit 1
 fi
 
+initialization_complete=0
+cleanup_failed_initialization() {
+    status=$?
+    trap - 0
+    if [ "$status" -ne 0 ] && [ "$initialization_complete" -eq 0 ]; then
+        rm -f "$TARGET"
+        if [ "$MODE" = "development" ] || [ "$MODE" = "dev" ]; then
+            rm -f "$ROOT_DIR/confs/nginx/auth/dev.htpasswd"
+        fi
+        echo "Initialization failed; generated environment files were removed. Fix the error and run the command again." >&2
+    fi
+    exit "$status"
+}
+trap cleanup_failed_initialization 0
+
 if ! command -v openssl >/dev/null 2>&1; then
     echo "openssl is required to generate secrets." >&2
     exit 1
@@ -75,6 +90,8 @@ if [ "$MODE" = "development" ] || [ "$MODE" = "dev" ]; then
     "$ROOT_DIR/scripts/init-dev-sites.sh"
 fi
 
+initialization_complete=1
+trap - 0
 echo "Created $TARGET for $MODE mode."
 if [ "$MODE" != "local" ]; then
     echo "Review EDGE_MODE, paths, database sizing and resource limits before deployment."
