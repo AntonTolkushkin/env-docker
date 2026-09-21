@@ -11,8 +11,11 @@ case "$MODE" in
     production|prod)
         TEMPLATE="$ROOT_DIR/.env.production.example"
         ;;
+    development|dev)
+        TEMPLATE="$ROOT_DIR/.env.development.example"
+        ;;
     *)
-        echo "Usage: $0 [local|production]" >&2
+        echo "Usage: $0 [local|production|development]" >&2
         exit 2
         ;;
 esac
@@ -44,6 +47,21 @@ replace_value() {
 replace_value MYSQL_PASSWORD "$(openssl rand -hex 24)"
 replace_value MYSQL_ROOT_PASSWORD "$(openssl rand -hex 24)"
 replace_value REDIS_PASSWORD "$(openssl rand -hex 24)"
+if [ "$MODE" = "development" ] || [ "$MODE" = "dev" ]; then
+    dev_password=$(openssl rand -hex 16)
+    replace_value DEV_BASIC_AUTH_PASSWORD "$dev_password"
+    dev_auth_user=$(sed -n 's/^DEV_BASIC_AUTH_USER=//p' "$TARGET" | tail -n 1 | tr -d '\r' | tr -d "'\"")
+    case "$dev_auth_user" in
+        ""|*[!A-Za-z0-9_.-]*)
+            echo "DEV_BASIC_AUTH_USER contains unsupported characters." >&2
+            exit 1
+            ;;
+    esac
+    mkdir -p "$ROOT_DIR/confs/nginx/auth"
+    printf '%s:%s\n' "$dev_auth_user" "$(openssl passwd -apr1 "$dev_password")" \
+        > "$ROOT_DIR/confs/nginx/auth/dev.htpasswd"
+    chmod 644 "$ROOT_DIR/confs/nginx/auth/dev.htpasswd"
+fi
 chmod 600 "$TARGET" 2>/dev/null || true
 
 if [ "$MODE" = "local" ]; then
@@ -53,7 +71,11 @@ if [ "$MODE" = "local" ]; then
     fi
 fi
 
+if [ "$MODE" = "development" ] || [ "$MODE" = "dev" ]; then
+    "$ROOT_DIR/scripts/init-dev-sites.sh"
+fi
+
 echo "Created $TARGET for $MODE mode."
 if [ "$MODE" != "local" ]; then
-    echo "Edit TRAEFIK_HOST_RULE, TRAEFIK_NETWORK and resource limits before deployment."
+    echo "Review EDGE_MODE, paths, database sizing and resource limits before deployment."
 fi

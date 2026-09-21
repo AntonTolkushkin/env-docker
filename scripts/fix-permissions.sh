@@ -32,14 +32,19 @@ if [ ! -d "$SITE_DIR" ]; then
 fi
 
 echo "Site directory: $SITE_DIR"
-printf 'Recursively set owner to Bitrix container UID/GID 979:979? [y/N] '
+target_uid=${TOOLS_UID:-979}
+target_gid=${TOOLS_GID:-979}
+case "$target_uid:$target_gid" in
+    *[!0-9:]*) echo "TOOLS_UID/TOOLS_GID must be numeric." >&2; exit 1 ;;
+esac
+printf 'Recursively set owner to container UID/GID %s:%s? [y/N] ' "$target_uid" "$target_gid"
 read -r answer
 case "$answer" in
     y|Y|yes|YES) ;;
     *) echo "Cancelled."; exit 1 ;;
 esac
 
-chown -R 979:979 "$SITE_DIR"
+chown -R "$target_uid:$target_gid" "$SITE_DIR"
 find "$SITE_DIR" -type d -exec chmod 0755 {} +
 find "$SITE_DIR" -type f -exec chmod 0644 {} +
 echo "Permissions updated."

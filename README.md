@@ -1,327 +1,315 @@
-# Bitrix в Docker: local и production
+# Finntrail Bitrix Docker environment
 
-Готовое окружение Bitrix на PHP 8.4, Percona Server 8.0, Redis и Nginx.
-Один репозиторий поддерживает два изолированных режима:
+Один репозиторий поддерживает три изолированных режима:
 
-| Режим | Домен | HTTPS | Запуск |
+| Режим | Домены | База | Внешний HTTPS |
 |---|---|---|---|
-| Local | `https://finntrail.local` | локальный доверенный сертификат `mkcert` | `./scripts/local-up.sh` |
-| Production | `https://finntrail.ru` | сертификат получает внешний Traefik | `./scripts/deploy.sh` |
+| Local | `finntrail.local` | локальная MariaDB | `mkcert` внутри Docker |
+| Production | `finntrail.ru`, `www.finntrail.ru` | отдельная production MariaDB | существующий Nginx/FASTPANEL либо Traefik |
+| Development | `dev.finntrail.ru`, `dev1.finntrail.ru`, `dev2.finntrail.ru` | отдельная development MariaDB для всех трёх имён | существующий Nginx/FASTPANEL либо Traefik |
 
-Обычный `docker compose up` использует `docker-compose.override.yml` и поэтому
-всегда означает local. Production запускается только через
-`docker-compose.prod.yml`; готовые скрипты выбирают нужные файлы по `APP_ENV`.
+Production и development запускаются из разных клонов репозитория с разными
+`.env`, `COMPOSE_PROJECT_NAME`, каталогами сайта и volumes.
 
 ## Состав
 
-| Сервис | Образ | Назначение |
+| Сервис | Образ по умолчанию | Назначение |
 |---|---|---|
-| `nginx` | `quay.io/bitrix24/nginx:1.30.4-v1-alpine` | HTTPS/HTTP, статика, FastCGI |
-| `php` | `quay.io/bitrix24/php:8.4.25-fpm-v1-alpine` | PHP-FPM 8.4 |
-| `cron` | тот же PHP-образ | cron-события Bitrix каждую минуту |
-| `mysql` | `quay.io/bitrix24/percona-server:8.0.46-v1-rhel` | основная БД |
-| `redis` | `redis:8.2.9-alpine` | PHP-сессии и кеш |
+| `nginx` | `quay.io/bitrix24/nginx:1.30.4-v1-alpine` | статика и FastCGI |
+| `php` / `cron` | `quay.io/bitrix24/php:8.4.25-fpm-v1-alpine` | PHP-FPM и агенты Bitrix |
+| `mysql` | `mariadb:10.11.19` | MariaDB 10.11 LTS |
+| `redis` | `redis:8.2.9-alpine` | сессии и кеш |
+| `composer` | PHP-образ, профиль `tools` | одноразовые команды Composer |
+| `node` | `node:22.13.1-alpine`, профиль `tools` | одноразовые команды npm |
 
-DocumentRoot внутри контейнеров — `/opt/www/public_html`, на хосте —
-`www/public_html` для local и `/srv/bitrix/www/public_html` по умолчанию для
-production.
+MariaDB 10.11 выбрана намеренно: текущий сайт работает на 10.11.18, а ветка
+10.11 используется в актуальном окружении 1С-Битрикс. Переход выполняется
+дампом/восстановлением, а не копированием `/var/lib/mysql`.
 
 ---
 
-# Local
+# Local: WSL, Linux и macOS
 
-## Требования
-
-- Docker Desktop либо Docker Engine с Docker Compose `2.24.4+`;
-- свободные локальные порты `80` и `443`;
-- минимум 4 GB RAM;
-- для macOS — Homebrew, если `mkcert` ещё не установлен.
-
-Локальные порты публикуются только на `127.0.0.1`, поэтому сайт не открывается
-другим устройствам сети.
-
-## Быстрая установка в WSL
-
-Из каталога репозитория:
+Требования: Docker Compose 2.24.4+, минимум 4 GB RAM, свободные локальные порты
+`80/443`.
 
 ```bash
 ./scripts/init-env.sh local
 ./scripts/local-up.sh
 ```
 
-Во время `init-env.sh` откроется запрос UAC Windows. Скрипт автоматически:
+В WSL скрипт запросит UAC Windows, установит локальный CA `mkcert`, создаст
+сертификат и добавит `finntrail.local` в Windows hosts. На macOS используется
+Homebrew/Keychain. После запуска откройте <https://finntrail.local>.
 
-1. скачает официальный `mkcert`, если он отсутствует;
-2. установит локальный CA в доверенное хранилище Windows;
-3. создаст сертификат для `finntrail.local`, `localhost`, `127.0.0.1` и `::1`;
-4. добавит `127.0.0.1 finntrail.local` в Windows `hosts`;
-5. сохранит сертификат в `confs/nginx/certs/finntrail.local`.
-
-После запуска откройте <https://finntrail.local>.
-
-## Быстрая установка в Windows PowerShell
-
-Откройте PowerShell в каталоге проекта:
+Windows PowerShell:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\init-env.ps1 -Mode Local
 powershell -ExecutionPolicy Bypass -File .\scripts\local-up.ps1
 ```
 
-Скрипт сертификата сам запросит права администратора. Chocolatey не требуется:
-при необходимости `mkcert.exe` скачивается в
-`%LOCALAPPDATA%\Programs\mkcert`.
-
-## Быстрая установка в macOS
-
-```bash
-./scripts/init-env.sh local
-./scripts/local-up.sh
-```
-
-Если `mkcert` отсутствует, скрипт установит его через Homebrew, добавит локальный
-CA в Keychain и добавит `finntrail.local` в `/etc/hosts`. macOS может запросить
-пароль пользователя.
-
-## Сертификаты local отдельно
-
-При существующем `.env` повторно запускать `init-env` не нужно. Для создания или
-обновления сертификата используйте:
-
-WSL, macOS или Linux:
+Повторное создание сертификата:
 
 ```bash
 ./scripts/setup-local-cert.sh
-```
-
-Windows PowerShell:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\setup-local-cert.ps1
-```
-
-После перевыпуска сертификата пересоздайте Nginx и полностью перезапустите
-браузер:
-
-```bash
 ./scripts/compose.sh up -d --force-recreate nginx
 ```
 
-Сертификат и его ключ исключены из Git. Никогда не копируйте и не публикуйте
-`rootCA-key.pem`, создаваемый `mkcert` в профиле пользователя.
-
-Чтобы создать `.env` без установки сертификата:
-
-```bash
-SKIP_LOCAL_CERT=1 ./scripts/init-env.sh local
-```
-
-В PowerShell:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\init-env.ps1 -Mode Local -SkipLocalCertificate
-```
-
-## Файлы сайта
-
-Поместите сайт в:
-
-```text
-www/public_html/
-├── bitrix/
-├── local/
-├── upload/
-└── index.php
-```
-
-Если файлов ещё нет, Nginx всё равно запустится и пройдёт healthcheck; страница
-сайта начнёт открываться после размещения `index.php` или `index.html`.
-
-## Управление local
-
-```bash
-./scripts/compose.sh ps
-./scripts/compose.sh logs -f --tail=100 nginx php
-./scripts/compose.sh exec php php -v
-./scripts/compose.sh exec php sh
-./scripts/compose.sh stop
-./scripts/compose.sh down
-```
-
-`down` сохраняет данные. Команда `down -v` удаляет MySQL, Redis и остальные
-именованные volumes — используйте её только для намеренного полного сброса.
-
-Проверка HTTPS и healthcheck из WSL:
-
-```bash
-curl -i -H 'Host: finntrail.local' http://127.0.0.1/docker-health
-curl -kI --resolve finntrail.local:443:127.0.0.1 https://finntrail.local/
-```
-
-Первый запрос должен вернуть `200 OK`, второй — ответ сайта по HTTPS.
+Файлы local находятся в `www/public_html`.
 
 ---
 
-# Production
+# Production на сервере с FASTPANEL/Nginx
 
-Production рассчитан на Ubuntu-сервер с уже работающим Traefik. Traefik:
+## Существующие сайты на хосте
 
-- слушает публичные порты `80/443`;
-- перенаправляет HTTP на HTTPS;
-- получает сертификат Let's Encrypt для `finntrail.ru`;
-- передаёт запросы контейнеру Nginx на внутренний порт `80`.
+Контейнерный Nginx публикуется только на `127.0.0.1:8588`. Поэтому запуск
+Compose не занимает публичные `80/443` и сам по себе не останавливает другие
+сайты. Опасны только следующие действия:
 
-Сам Nginx дополнительно публикуется только на `127.0.0.1:8588` для диагностики.
+- установка `NGINX_BIND_ADDRESS=0.0.0.0`;
+- установка `HTTP_PORT=80` или `443` на уже занятом адресе;
+- запуск Traefik на тех же `80/443`, которые слушает FASTPANEL Nginx;
+- одновременное включение старого и нового virtual host с одинаковым
+  `server_name`.
 
-## 1. Подготовка каталогов
+Для текущего сервера оставьте `EDGE_MODE=host-nginx`. FASTPANEL Nginx принимает
+HTTPS и проксирует только Finntrail в Docker. Остальные сайты продолжают
+обслуживаться как раньше.
 
-```bash
-sudo install -d -o 979 -g 979 /srv/bitrix/www/public_html
-sudo install -d -o "$USER" -g "$USER" /srv/bitrix/backups
-```
-
-Файлы сайта должны находиться в `/srv/bitrix/www/public_html`.
-
-## 2. Создание production `.env`
+## Каталоги и установка
 
 ```bash
+sudo install -d -o "$USER" -g "$USER" \
+  /srv/bitrix-prod/env-docker \
+  /srv/bitrix-prod/www/public_html \
+  /srv/bitrix-prod/backups
+
+git clone https://github.com/AntonTolkushkin/env-docker.git \
+  /srv/bitrix-prod/env-docker
+cd /srv/bitrix-prod/env-docker
 ./scripts/init-env.sh production
 ```
 
-Откройте `.env` и обязательно проверьте:
+Проверьте `.env`:
 
 ```dotenv
 APP_ENV=production
 COMPOSE_PROJECT_NAME=bitrix-prod
-WWW_PATH=/srv/bitrix/www
-BACKUP_PATH=/srv/bitrix/backups
-TRAEFIK_HOST_RULE='Host(`finntrail.ru`) || Host(`www.finntrail.ru`)'
-TRAEFIK_NETWORK=proxy
-TRAEFIK_CERTRESOLVER=letsencrypt
+EDGE_MODE=host-nginx
+NGINX_BIND_ADDRESS=127.0.0.1
+HTTP_PORT=8588
+WWW_PATH=/srv/bitrix-prod/www
+BACKUP_PATH=/srv/bitrix-prod/backups
 ```
 
-Также настройте `MYSQL_INNODB_BUFFER_POOL_SIZE` под объём памяти сервера.
-
-## 3. Внешняя сеть Traefik
-
-Проверьте существующую сеть:
+Разместите сайт в `/srv/bitrix-prod/www/public_html`, затем:
 
 ```bash
-docker network inspect proxy
-```
-
-Если имя другое, укажите его в `TRAEFIK_NETWORK`. Создавайте сеть только если
-она действительно отсутствует и ваш Traefik использует это же имя:
-
-```bash
-docker network create proxy
-```
-
-## 4. Проверка и запуск
-
-```bash
+sudo ./scripts/fix-permissions.sh
 ./scripts/validate.sh production
 ./scripts/deploy.sh
-```
-
-`deploy.sh` проверяет PHP-FPM и Nginx до обновления работающих контейнеров.
-
-Проверка backend без переключения DNS:
-
-```bash
 curl -i -H 'Host: finntrail.ru' http://127.0.0.1:8588/docker-health
-curl -I -H 'Host: finntrail.ru' http://127.0.0.1:8588/
-./scripts/compose.sh ps
 ```
 
-Production не использует локальные сертификаты из
-`confs/nginx/certs`: сертификат и его продление полностью контролирует Traefik.
+Пример host-Nginx находится в
+`deploy/host-nginx/finntrail-docker.conf.example`. Сначала выпустите сертификат
+для нужных имён и отключите прежние FASTPANEL-конфиги только этих доменов,
+затем выполните `nginx -t` и reload. Не заменяйте общую конфигурацию Nginx и не
+останавливайте FASTPANEL.
 
-## 5. Обновление production
+## Traefik как альтернатива
 
-```bash
-git pull --ff-only
-./scripts/deploy.sh
+Используйте только если Traefik уже является единственным владельцем публичных
+`80/443` либо работает на другом IP:
+
+```dotenv
+EDGE_MODE=traefik
+TRAEFIK_NETWORK=proxy
+TRAEFIK_ROUTER_NAME=finntrail-prod
+TRAEFIK_HOST_RULE='Host(`finntrail.ru`) || Host(`www.finntrail.ru`)'
 ```
-
-Теги образов закреплены в `.env`. Меняйте их осознанно, сначала проверяйте
-обновление локально и только затем разворачивайте в production.
 
 ---
 
-# Общие настройки
+# Development: dev, dev1 и dev2
 
-## Подключение Bitrix
+## Установка
 
-| Параметр | Значение |
-|---|---|
-| сервер MySQL | `mysql` |
-| порт MySQL | `3306` |
-| база | значение `MYSQL_DATABASE` |
-| пользователь | значение `MYSQL_USER` |
-| пароль | значение `MYSQL_PASSWORD` |
-| Redis host | `redis` |
-| Redis port | `6379` |
-| Redis password | значение `REDIS_PASSWORD` |
+```bash
+sudo install -d -o "$USER" -g "$USER" \
+  /srv/bitrix-dev/env-docker \
+  /srv/bitrix-dev/www \
+  /srv/bitrix-dev/backups
 
-PHP-сессии используют Redis database `1`, кешу Bitrix можно назначить database
-`0`. Пример переноса приведён в [docs/MIGRATION.md](docs/MIGRATION.md).
-
-## Cron
-
-Контейнер `cron` каждую минуту проверяет и запускает:
-
-```text
-/opt/www/public_html/bitrix/modules/main/tools/cron_events.php
+git clone https://github.com/AntonTolkushkin/env-docker.git \
+  /srv/bitrix-dev/env-docker
+cd /srv/bitrix-dev/env-docker
+./scripts/init-env.sh development
+./scripts/validate.sh development
+./scripts/deploy.sh
 ```
 
-Скрипт пропускает запуск во время установки Bitrix. Чтобы события не выполнялись
-одновременно на хитах, настройте агенты Bitrix на cron в самом проекте.
+Development занимает только `127.0.0.1:8589`. В `.env` должны остаться:
 
-## Резервное копирование
+```dotenv
+APP_ENV=development
+COMPOSE_PROJECT_NAME=bitrix-dev
+EDGE_MODE=host-nginx
+NGINX_BIND_ADDRESS=127.0.0.1
+HTTP_PORT=8589
+WWW_PATH=/srv/bitrix-dev/www
+MYSQL_DATABASE=bitrix_dev
+```
+
+`init-env.sh development`:
+
+1. создаёт отдельные пароли MariaDB и Redis;
+2. генерирует Basic Auth для всех dev-доменов;
+3. создаёт каталоги `dev`, `dev1`, `dev2`;
+4. создаёт в `dev1/dev2` симлинки `bitrix` и `upload` на основной `dev`.
+
+Все три домена используют одну development-базу. Cron запускается только от
+основного `/opt/www/dev/public_html`. Development ограничен по CPU, RAM и числу
+PHP-FPM workers; лимиты можно изменить в `.env.development.example`.
+
+Проверка маршрутизации до изменения DNS:
+
+```bash
+curl -i -H 'Host: dev.finntrail.ru' http://127.0.0.1:8589/docker-health
+curl -I -u developer:ПАРОЛЬ_ИЗ_ENV \
+  -H 'Host: dev1.finntrail.ru' http://127.0.0.1:8589/
+```
+
+Подробная схема: [docs/SERVER-TOPOLOGY.md](docs/SERVER-TOPOLOGY.md).
+
+## Production → development
+
+Из development-клона:
+
+```bash
+./scripts/sync-prod-to-dev.sh \
+  --prod-root /srv/bitrix-prod/env-docker
+
+./scripts/sync-prod-to-dev.sh \
+  --prod-root /srv/bitrix-prod/env-docker \
+  --with-upload
+```
+
+Скрипт не умеет синхронизировать dev обратно в production. Перед заменой он
+создаёт rollback-dump development. Код следует обновлять через Git, БД — этим
+скриптом, `upload` — флагом `--with-upload`.
+
+Обязательно создайте собственный `scripts/hooks/post-sync-dev.sh`: после
+production-дампа нужно отключить реальную почту, платежи, SMS, CRM и webhooks.
+Шаблон находится в `scripts/hooks/post-sync-dev.sh.example`. Без исполняемого
+hook синхронизация завершится до изменения dev-базы; небезопасный обход требует
+явного флага `--allow-unsanitized`.
+
+---
+
+# Composer и npm
+
+Composer уже находится в PHP-образе и использует тот же PHP/extensions, что и
+сайт. Node/npm запускается отдельным одноразовым контейнером и не потребляет
+ресурсы постоянно.
+
+```bash
+./scripts/composer.sh --version
+./scripts/composer.sh install --no-dev --optimize-autoloader
+
+./scripts/npm.sh --version
+./scripts/npm.sh ci
+./scripts/npm.sh run build
+```
+
+Команды выполняются от UID/GID `979:979`. Это предотвращает появление root-owned
+`vendor` и `node_modules`. Если владелец файлов на сервере другой, измените
+`TOOLS_UID` и `TOOLS_GID` в `.env`.
+
+---
+
+# Настройка производительности
+
+Production-профиль перенёс важные параметры текущего сервера:
+
+- MariaDB buffer pool `10G`, `150` connections и `READ-COMMITTED`;
+- PHP-FPM dynamic, до `60` workers по умолчанию;
+- PHP `memory_limit=1024M`, upload/post до `1024M`;
+- расширенный OPcache и Redis-сессии;
+- rate limit только для выбранных роботов;
+- slow query log от двух секунд.
+
+`pm.max_children=100` из старого конфига не перенесён буквально: вместе с
+`memory_limit=2048M` он способен исчерпать память сервера при пике. Начальное
+значение `60` тоже нужно проверить по фактическому P95 RSS PHP-процесса:
+
+```text
+pm.max_children = доступная_память_для_PHP / P95_RSS_одного_worker
+```
+
+До переключения production выполните нагрузочный тест и наблюдайте OOM,
+load average, очередь PHP-FPM, slow PHP log, MariaDB buffer pool и slow queries.
+Ни одна статическая конфигурация не может гарантировать пиковую
+производительность без характеристик сервера и профиля запросов.
+
+---
+
+# Резервные копии и восстановление
+
+Полная копия БД и файлов:
 
 ```bash
 ./scripts/backup.sh
 ```
 
-Создаются согласованный дамп MySQL и архив каталога `WWW_PATH`. Кеши Bitrix и
-`upload/tmp` в архив файлов не включаются.
-
-Восстановление БД:
+Только согласованный дамп БД:
 
 ```bash
-./scripts/restore-db.sh /path/to/mysql-YYYYMMDDTHHMMSSZ.sql.gz
+./scripts/backup-db.sh
 ```
 
-## Права на production
-
-Образы Bitrix используют UID/GID `979:979`:
+Восстановление без удаления лишних таблиц:
 
 ```bash
-sudo ./scripts/fix-permissions.sh
+./scripts/restore-db.sh /path/to/dump.sql.gz
 ```
 
-Скрипт показывает целевой каталог и запрашивает подтверждение перед рекурсивным
-изменением прав.
+Полная замена выбранной в `.env` базы:
 
-## Структура
-
-```text
-.
-├── docker-compose.yml             # общие сервисы и исправления
-├── docker-compose.override.yml    # local: finntrail.local, 80/443
-├── docker-compose.prod.yml        # production: finntrail.ru + Traefik
-├── .env.example
-├── .env.production.example
-├── confs/
-│   ├── cron/
-│   ├── nginx/
-│   ├── php84/
-│   └── php/
-├── docs/
-├── scripts/
-├── www/public_html/               # local DocumentRoot, исключён из Git
-└── backups/                       # резервные копии, исключены из Git
+```bash
+./scripts/restore-db.sh --replace-database /path/to/dump.sql.gz
 ```
 
-Не коммитьте `.env`, сертификаты, приватные ключи, файлы сайта, дампы или архивы.
+Никогда не подключайте volume Percona/MySQL 8 напрямую к MariaDB. Новая версия
+Compose намеренно использует volume `mariadb_data` вместо старого
+`mysql_data`: старый volume сохраняется, но не подключается. Создайте SQL dump
+старой БД и импортируйте его в новый пустой MariaDB volume.
+
+---
+
+# Zabbix Agent 2
+
+Zabbix Agent 2 устанавливается на хост и не добавляется в Compose. Контейнеры не
+занимают `10050/10051`. Входящий `10050/tcp` разрешайте только IP Zabbix
+server/proxy; `10051/tcp` нужен как исходящее направление для active checks.
+Подробности: [docs/ZABBIX.md](docs/ZABBIX.md).
+
+---
+
+# Управление
+
+```bash
+./scripts/compose.sh ps
+./scripts/compose.sh logs -f --tail=100 nginx php mysql
+./scripts/compose.sh exec php php -v
+./scripts/compose.sh stop
+./scripts/compose.sh down
+```
+
+`down` сохраняет volumes. `down -v` удаляет MariaDB, Redis и остальные данные;
+не выполняйте его на сервере без проверенной внешней резервной копии.
+
+Секреты `.env`, Basic Auth, сертификаты, файлы сайта, дампы и архивы исключены
+из Git.
