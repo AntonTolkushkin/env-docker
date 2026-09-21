@@ -45,5 +45,5 @@ if ($Mode -eq "Local") {
 
 Write-Host "Created $Target for $Mode mode."
 if ($Mode -eq "Production") {
-    Write-Host "Edit TRAEFIK_HOST_RULE, TRAEFIK_NETWORK and resource limits before deployment."
+    Write-Host "Review EDGE_MODE, paths, database sizing and resource limits before deployment."
 }

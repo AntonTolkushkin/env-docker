@@ -3,6 +3,7 @@
 .env.*
 !.env.example
 !.env.production.example
+!.env.development.example
 
 # Site data is deployed separately from infrastructure code
 /www/*
@@ -23,7 +24,9 @@
 .vscode/
 .DS_Store
 Thumbs.db
+/scripts/hooks/post-sync-dev.sh
 
 # Local and production private keys are provisioned outside Git.
 /confs/nginx/certs/*
 !/confs/nginx/certs/.gitkeep
+/confs/nginx/auth/*

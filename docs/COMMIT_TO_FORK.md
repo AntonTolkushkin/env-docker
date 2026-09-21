@@ -1,64 +1,53 @@
-# Как применить готовый архив к форку
+# Как применить готовый ZIP или patch к форку
 
-Архив содержит полный runtime-комплект и patch относительно актуального `main`
-на момент сборки. Каталог `sources/` не дублируется в архиве: Compose использует
-готовые образы, а существующий каталог `sources/` в форке нужно сохранить.
+Комплект собран относительно commit `962aa93` ветки `main`.
 
-Старый каталог `confs/nginx/certs/example.com` содержал приватный тестовый ключ.
-Его содержимое намеренно не переносится даже в patch: каталог нужно удалить
-отдельной командой ниже.
+## Вариант 1: готовый ZIP
 
-## Вариант 1: распаковка поверх клона
+Распакуйте архив в отдельный каталог. В нём уже находится полный репозиторий
+без `.git`, `.env`, сертификатов, баз, сайта и резервных копий.
 
-```bash
-git clone https://github.com/AntonTolkushkin/env-docker.git
-cd env-docker
-git switch main
-git pull --ff-only
-```
-
-Распакуйте содержимое каталога `env-docker-ready` в корень репозитория с заменой
-одноимённых файлов. Удалите файлы, которых больше нет в комплекте:
+Чтобы заменить содержимое существующего клона и сохранить его Git history:
 
 ```bash
-git rm -r --ignore-unmatch \
-  README-REDIS-FIX.md \
-  confs/nginx/certs/example.com \
-  confs/nginx/ssl/finntrail.ru.conf \
-  confs/php/fpm-local.conf \
-  confs/php/project-local.ini \
-  www/.gitkeep
-```
-
-Затем проверьте:
-
-```bash
+cd /path/to/existing/env-docker
+git status --short
+rsync -a --delete \
+  --exclude='.git/' \
+  --exclude='.env' \
+  --exclude='www/' \
+  /path/to/unpacked/env-docker-ready/ ./
 git status --short
 git diff --check
-git diff --stat
 ```
+
+Перед `rsync --delete` убедитесь, что путь архива и текущего клона указаны
+правильно. Файлы сайта находятся вне production/development-клонов по
+`WWW_PATH`, поэтому в архив не входят.
 
 ## Вариант 2: patch
 
-Из корня чистой рабочей копии:
+Из чистой рабочей копии на commit `962aa93`:
 
 ```bash
-git apply --index /path/to/env-docker-ready.patch
-git rm -r --ignore-unmatch confs/nginx/certs/example.com
+git switch main
+git pull --ff-only
+git apply --check /path/to/env-docker-prod-dev.patch
+git apply --index /path/to/env-docker-prod-dev.patch
 git diff --cached --check
 ```
+
+Если `main` уже изменился, сначала создайте отдельную ветку и примените patch
+без `--index`, затем разрешите конфликты вручную.
 
 ## Коммит
 
-До `git add` убедитесь, что в статус не попали `.env`, сертификаты, ключи,
-`www/public_html` или резервные копии.
+Проверьте, что в индекс не попали `.env`, `confs/nginx/auth/dev.htpasswd`,
+сертификаты, дампы или файлы сайта:
 
 ```bash
-git add .
-git diff --cached --check
+git status --short
 git diff --cached --stat
-git commit -m "Fix local HTTPS and production Docker deployment"
+git commit -m "Add isolated prod and multi-site development deployment"
 git push origin main
 ```
-
-После коммита выполните установку нужного режима по новому README.

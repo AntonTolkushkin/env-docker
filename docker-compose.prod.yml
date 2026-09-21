@@ -1,7 +1,13 @@
 services:
   php:
     environment:
-      BITRIX_ENV_TYPE: production
+      BITRIX_ENV_TYPE: ${BITRIX_ENV_TYPE:-production}
+      PHP_FPM_MAX_CHILDREN: ${PHP_FPM_MAX_CHILDREN:-60}
+      PHP_FPM_START_SERVERS: ${PHP_FPM_START_SERVERS:-12}
+      PHP_FPM_MIN_SPARE_SERVERS: ${PHP_FPM_MIN_SPARE_SERVERS:-8}
+      PHP_FPM_MAX_SPARE_SERVERS: ${PHP_FPM_MAX_SPARE_SERVERS:-24}
+      PHP_FPM_MAX_REQUESTS: ${PHP_FPM_MAX_REQUESTS:-1000}
+      PHP_MEMORY_LIMIT: ${PHP_MEMORY_LIMIT:-1024M}
     volumes:
       - type: bind
         source: ./confs/php/project-production.ini
@@ -14,7 +20,13 @@ services:
 
   cron:
     environment:
-      BITRIX_ENV_TYPE: production
+      BITRIX_ENV_TYPE: ${BITRIX_ENV_TYPE:-production}
+      PHP_FPM_MAX_CHILDREN: ${PHP_FPM_MAX_CHILDREN:-60}
+      PHP_FPM_START_SERVERS: ${PHP_FPM_START_SERVERS:-12}
+      PHP_FPM_MIN_SPARE_SERVERS: ${PHP_FPM_MIN_SPARE_SERVERS:-8}
+      PHP_FPM_MAX_SPARE_SERVERS: ${PHP_FPM_MAX_SPARE_SERVERS:-24}
+      PHP_FPM_MAX_REQUESTS: ${PHP_FPM_MAX_REQUESTS:-1000}
+      PHP_MEMORY_LIMIT: ${PHP_MEMORY_LIMIT:-1024M}
     volumes:
       - type: bind
         source: ./confs/php/project-production.ini
@@ -28,28 +40,3 @@ services:
   nginx:
     volumes:
       - ./confs/nginx/sites/finntrail.ru.conf:/etc/nginx/conf.d/default.conf:ro
-    networks:
-      - backend
-      - traefik
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=${TRAEFIK_NETWORK:?TRAEFIK_NETWORK is required for production}
-      - traefik.http.routers.${TRAEFIK_ROUTER_NAME:-bitrix}-http.rule=${TRAEFIK_HOST_RULE:?TRAEFIK_HOST_RULE is required for production}
-      - traefik.http.routers.${TRAEFIK_ROUTER_NAME:-bitrix}-http.entrypoints=${TRAEFIK_HTTP_ENTRYPOINT:-web}
-      - traefik.http.routers.${TRAEFIK_ROUTER_NAME:-bitrix}-http.middlewares=${TRAEFIK_ROUTER_NAME:-bitrix}-https-redirect
-      - traefik.http.middlewares.${TRAEFIK_ROUTER_NAME:-bitrix}-https-redirect.redirectscheme.scheme=https
-      - traefik.http.middlewares.${TRAEFIK_ROUTER_NAME:-bitrix}-https-redirect.redirectscheme.permanent=true
-      - traefik.http.routers.${TRAEFIK_ROUTER_NAME:-bitrix}.rule=${TRAEFIK_HOST_RULE:?TRAEFIK_HOST_RULE is required for production}
-      - traefik.http.routers.${TRAEFIK_ROUTER_NAME:-bitrix}.entrypoints=${TRAEFIK_HTTPS_ENTRYPOINT:-websecure}
-      - traefik.http.routers.${TRAEFIK_ROUTER_NAME:-bitrix}.tls=true
-      - traefik.http.routers.${TRAEFIK_ROUTER_NAME:-bitrix}.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencrypt}
-      - traefik.http.routers.${TRAEFIK_ROUTER_NAME:-bitrix}.service=${TRAEFIK_ROUTER_NAME:-bitrix}
-      - traefik.http.services.${TRAEFIK_ROUTER_NAME:-bitrix}.loadbalancer.server.port=80
-      - traefik.http.services.${TRAEFIK_ROUTER_NAME:-bitrix}.loadbalancer.healthcheck.path=/docker-health
-      - traefik.http.services.${TRAEFIK_ROUTER_NAME:-bitrix}.loadbalancer.healthcheck.interval=10s
-      - traefik.http.services.${TRAEFIK_ROUTER_NAME:-bitrix}.loadbalancer.healthcheck.timeout=3s
-
-networks:
-  traefik:
-    external: true
-    name: ${TRAEFIK_NETWORK:?TRAEFIK_NETWORK is required for production}

@@ -3,15 +3,21 @@ set -eu
 
 ROOT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 ASSUME_YES=0
+REPLACE_DATABASE=0
 
-if [ "${1:-}" = "--yes" ]; then
-    ASSUME_YES=1
-    shift
-fi
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --yes) ASSUME_YES=1; shift ;;
+        --replace-database) REPLACE_DATABASE=1; shift ;;
+        --) shift; break ;;
+        -*) echo "Unknown option: $1" >&2; exit 2 ;;
+        *) break ;;
+    esac
+done
 
 DUMP_FILE=${1:-}
 if [ -z "$DUMP_FILE" ] || [ ! -f "$DUMP_FILE" ]; then
-    echo "Usage: $0 [--yes] /path/to/dump.sql[.gz]" >&2
+    echo "Usage: $0 [--yes] [--replace-database] /path/to/dump.sql[.gz]" >&2
     exit 2
 fi
 
@@ -30,20 +36,32 @@ if [ "$ASSUME_YES" -ne 1 ]; then
 fi
 
 cd "$ROOT_DIR"
-"$ROOT_DIR/scripts/compose.sh" up -d mysql
+"$ROOT_DIR/scripts/compose.sh" up -d --wait mysql
+
+if [ "$REPLACE_DATABASE" -eq 1 ]; then
+    # A strict identifier check makes the quoted DROP/CREATE operation safe.
+    # shellcheck disable=SC2016
+    "$ROOT_DIR/scripts/compose.sh" exec -T mysql sh -ec '
+        case "$MARIADB_DATABASE" in
+            ""|*[!A-Za-z0-9_]*) echo "Unsafe MARIADB_DATABASE" >&2; exit 1 ;;
+        esac
+        mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" -e \
+          "DROP DATABASE IF EXISTS \`$MARIADB_DATABASE\`; CREATE DATABASE \`$MARIADB_DATABASE\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+    '
+fi
 
 case "$DUMP_FILE" in
     *.gz)
-        # Expanded by the shell inside the MySQL container.
+        # Expanded by the shell inside the MariaDB container.
         # shellcheck disable=SC2016
         gzip -dc "$DUMP_FILE" | "$ROOT_DIR/scripts/compose.sh" exec -T mysql sh -ec \
-            'exec mysql -uroot -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE"'
+            'exec mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE"'
         ;;
     *)
-        # Expanded by the shell inside the MySQL container.
+        # Expanded by the shell inside the MariaDB container.
         # shellcheck disable=SC2016
         "$ROOT_DIR/scripts/compose.sh" exec -T mysql sh -ec \
-            'exec mysql -uroot -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE"' < "$DUMP_FILE"
+            'exec mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE"' < "$DUMP_FILE"
         ;;
 esac
 
