@@ -126,6 +126,11 @@ sudo ./scripts/fix-permissions.sh
 curl -i -H 'Host: finntrail.ru' http://127.0.0.1:8588/docker-health
 ```
 
+Для повторной полной синхронизации локального `red.finntrail.ru` в Docker
+используйте `sudo ./scripts/sync-red-to-prod.sh`. Скрипт допускает простой
+production во время переноса. Описание и исключения:
+[docs/RED-TO-PROD-SYNC.md](docs/RED-TO-PROD-SYNC.md).
+
 Пример host-Nginx находится в
 `deploy/host-nginx/finntrail-docker.conf.example`. Сначала выпустите сертификат
 для нужных имён и отключите прежние FASTPANEL-конфиги только этих доменов,
