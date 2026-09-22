@@ -1,0 +1,60 @@
+services:
+  percona-migration:
+    image: ${PERCONA_IMAGE:-quay.io/bitrix24/percona-server:8.0.46-v1-rhel}
+    container_name: bitrix-prod-percona-migration
+
+    environment:
+      TZ: ${TZ:-Europe/Moscow}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-bitrix}
+      MYSQL_USER: ${MYSQL_USER:-bitrix}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
+
+    command:
+      - --innodb-buffer-pool-size=${MYSQL_INNODB_BUFFER_POOL_SIZE:-2G}
+      - --max-connections=${MYSQL_MAX_CONNECTIONS:-100}
+      - --max-allowed-packet=${MYSQL_MAX_ALLOWED_PACKET:-256M}
+      - --tmp-table-size=${MYSQL_TMP_TABLE_SIZE:-64M}
+      - --max-heap-table-size=${MYSQL_MAX_HEAP_TABLE_SIZE:-64M}
+      - --innodb-flush-log-at-trx-commit=2
+      - --transaction-isolation=READ-COMMITTED
+      - --skip-log-bin
+
+    volumes:
+      - percona_data:/var/lib/mysql
+      - percona_log_data:/var/log/mysql
+      - type: bind
+        source: ./confs/percona/zz-bitrix.cnf
+        target: /etc/my.cnf.d/zz-bitrix.cnf
+        read_only: true
+
+    networks:
+      - backend
+
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - mysqladmin ping -h 127.0.0.1 -uroot -p"$${MYSQL_ROOT_PASSWORD}" --silent
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+    stop_grace_period: 1m
+
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+
+volumes:
+  percona_data:
+    name: bitrix-prod_percona_data
+
+  percona_log_data:
+    name: bitrix-prod_percona_log_data
+
+networks:
+  backend:
+    external: true
+    name: bitrix-prod_backend
