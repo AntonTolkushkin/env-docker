@@ -132,10 +132,14 @@ production во время переноса. Описание и исключе�
 [docs/RED-TO-PROD-SYNC.md](docs/RED-TO-PROD-SYNC.md).
 
 Пример host-Nginx находится в
-`deploy/host-nginx/finntrail-docker.conf.example`. Сначала выпустите сертификат
-для нужных имён и отключите прежние FASTPANEL-конфиги только этих доменов,
-затем выполните `nginx -t` и reload. Не заменяйте общую конфигурацию Nginx и не
-останавливайте FASTPANEL.
+`deploy/host-nginx/finntrail-docker.conf.example`. На Debian без панели
+разместите virtual host в `/etc/nginx/sites-available`, включите его ссылкой в
+`/etc/nginx/sites-enabled`, выпустите сертификат и затем выполните `nginx -t`
+и reload. Не оставляйте одновременно два virtual host с одинаковым
+`server_name`.
+
+Управление production-редиректами и IP-блокировками отдельными командами
+описано в [docs/HOST-EDGE-RULES.md](docs/HOST-EDGE-RULES.md).
 
 ## Traefik как альтернатива
 
