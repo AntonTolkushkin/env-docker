@@ -45,10 +45,23 @@ FILES_FILE="$BACKUP_DIR/www-$TIMESTAMP.tar.gz"
 mkdir -p "$BACKUP_DIR"
 cd "$ROOT_DIR"
 
-# Expanded by the shell inside the MariaDB container.
+# Expanded by the shell inside the Percona container.
 # shellcheck disable=SC2016
-"$ROOT_DIR/scripts/compose.sh" exec -T mysql sh -ec \
-    'exec mariadb-dump --single-transaction --quick --routines --triggers --events --hex-blob -uroot -p"$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE"' \
+"$ROOT_DIR/scripts/compose.sh" exec -T mysql sh -ec '
+    export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"
+    exec mysqldump \
+        --protocol=socket \
+        --single-transaction \
+        --quick \
+        --routines \
+        --triggers \
+        --events \
+        --hex-blob \
+        --no-tablespaces \
+        --set-gtid-purged=OFF \
+        -uroot \
+        "$MYSQL_DATABASE"
+' \
     | gzip -9 > "$DB_FILE"
 
 tar \

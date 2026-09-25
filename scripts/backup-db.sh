@@ -25,8 +25,21 @@ mkdir -p "$backup_dir"
 
 "$ROOT_DIR/scripts/compose.sh" up -d --wait mysql >/dev/null
 # shellcheck disable=SC2016
-"$ROOT_DIR/scripts/compose.sh" exec -T mysql sh -ec \
-    'exec mariadb-dump --single-transaction --quick --routines --triggers --events --hex-blob -uroot -p"$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE"' \
+"$ROOT_DIR/scripts/compose.sh" exec -T mysql sh -ec '
+    export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"
+    exec mysqldump \
+        --protocol=socket \
+        --single-transaction \
+        --quick \
+        --routines \
+        --triggers \
+        --events \
+        --hex-blob \
+        --no-tablespaces \
+        --set-gtid-purged=OFF \
+        -uroot \
+        "$MYSQL_DATABASE"
+' \
     | gzip -6 > "$dump_file"
 
 if command -v sha256sum >/dev/null 2>&1; then

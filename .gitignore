@@ -25,6 +25,7 @@
 .DS_Store
 Thumbs.db
 /scripts/hooks/post-sync-dev.sh
+/scripts/hooks/post-sync-local.sh
 
 # Local and production private keys are provisioned outside Git.
 /confs/nginx/certs/*

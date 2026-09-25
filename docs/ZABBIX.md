@@ -10,7 +10,7 @@ port conflict.
 - Allow inbound `10050/tcp` only from the exact Zabbix server/proxy address.
 - Allow outbound `10051/tcp` only to that server/proxy when active checks are
   enabled.
-- Do not publish MariaDB (`3306`) or Redis (`6379`) publicly for monitoring.
+- Do not publish Percona/MySQL (`3306`) or Redis (`6379`) publicly for monitoring.
 
 Recommended host-agent checks:
 

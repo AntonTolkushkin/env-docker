@@ -10,11 +10,11 @@ Run two clones of this repository:
 ```
 
 Different `COMPOSE_PROJECT_NAME` values create different containers, networks,
-MariaDB volumes and Redis volumes. Never point both clones at the same
+Percona volumes and Redis volumes. Never point both clones at the same
 `WWW_PATH`, `BACKUP_PATH` or Compose project name.
 
 The existing host Nginx remains on public ports `80/443`. It proxies only the
-Finntrail domains to the loopback ports above; unrelated FASTPANEL sites remain
+Finntrail domains to the loopback ports above; unrelated host sites remain
 untouched. Do not run Traefik on the same public IP and ports while the host
 Nginx is listening there.
 
@@ -38,7 +38,7 @@ Nginx is listening there.
     └── local/
 ```
 
-All three names use the same development MariaDB and Redis. Only the primary
+All three names use the same development Percona and Redis. Only the primary
 `dev` site runs cron agents. `dev1` and `dev2` can have separate application
 code under their own `local` directories.
 

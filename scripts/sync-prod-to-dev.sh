@@ -96,8 +96,21 @@ prod_dump="$sync_dir/prod-$(date -u +%Y%m%dT%H%M%SZ).sql.gz"
 echo "Dumping production database..."
 "$PROD_ROOT/scripts/compose.sh" up -d --wait mysql >/dev/null
 # shellcheck disable=SC2016
-"$PROD_ROOT/scripts/compose.sh" exec -T mysql sh -ec \
-    'exec mariadb-dump --single-transaction --quick --routines --triggers --events --hex-blob -uroot -p"$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE"' \
+"$PROD_ROOT/scripts/compose.sh" exec -T mysql sh -ec '
+    export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"
+    exec mysqldump \
+        --protocol=socket \
+        --single-transaction \
+        --quick \
+        --routines \
+        --triggers \
+        --events \
+        --hex-blob \
+        --no-tablespaces \
+        --set-gtid-purged=OFF \
+        -uroot \
+        "$MYSQL_DATABASE"
+' \
     | gzip -6 > "$prod_dump"
 
 cron_stopped=0

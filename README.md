@@ -4,9 +4,9 @@
 
 | Режим | Домены | База | Внешний HTTPS |
 |---|---|---|---|
-| Local | `finntrail.local` | локальная MariaDB | `mkcert` внутри Docker |
-| Production | `finntrail.ru`, `www.finntrail.ru` | отдельная production MariaDB | существующий Nginx/FASTPANEL либо Traefik |
-| Development | `dev.finntrail.ru`, `dev1.finntrail.ru`, `dev2.finntrail.ru` | отдельная development MariaDB для всех трёх имён | существующий Nginx/FASTPANEL либо Traefik |
+| Local | `finntrail.local` | локальная Percona Server | `mkcert` внутри Docker |
+| Production | `finntrail.ru`, `www.finntrail.ru` | отдельная production Percona Server | существующий host-Nginx либо Traefik |
+| Development | `dev.finntrail.ru`, `dev1.finntrail.ru`, `dev2.finntrail.ru` | отдельная development Percona Server для всех трёх имён | существующий host-Nginx либо Traefik |
 
 Production и development запускаются из разных клонов репозитория с разными
 `.env`, `COMPOSE_PROJECT_NAME`, каталогами сайта и volumes.
@@ -17,14 +17,15 @@ Production и development запускаются из разных клонов 
 |---|---|---|
 | `nginx` | `quay.io/bitrix24/nginx:1.30.4-v1-alpine` | статика и FastCGI |
 | `php` / `cron` | `quay.io/bitrix24/php:8.4.25-fpm-v1-alpine` | PHP-FPM и агенты Bitrix |
-| `mysql` | `mariadb:10.11.19` | MariaDB 10.11 LTS |
+| `mysql` | `quay.io/bitrix24/percona-server:8.0.46-v1-rhel` | Percona Server 8.0 |
 | `redis` | `redis:8.2.9-alpine` | сессии и кеш |
 | `composer` | PHP-образ, профиль `tools` | одноразовые команды Composer |
 | `node` | `node:22.13.1-alpine`, профиль `tools` | одноразовые команды npm |
 
-MariaDB 10.11 выбрана намеренно: текущий сайт работает на 10.11.18, а ветка
-10.11 используется в актуальном окружении 1С-Битрикс. Переход выполняется
-дампом/восстановлением, а не копированием `/var/lib/mysql`.
+Имя Compose-сервиса оставлено `mysql`, но внутри работает Percona Server 8.0.
+Для БД используются отдельные volumes `percona_data` и `percona_log_data`.
+Данные между разными СУБД переносятся только SQL dump/restore, без копирования
+`/var/lib/mysql`.
 
 ---
 
@@ -71,9 +72,29 @@ ls -l confs/nginx/certs/finntrail.local/{fullchain.pem,privkey.pem}
 
 Файлы local находятся в `www/public_html`.
 
+## Синхронизация production → local
+
+На WSL или macOS можно одной командой получить свежую базу и файлы с
+`217.114.11.188`, автоматически восстановить их в локальной Percona и запустить
+`https://finntrail.local`:
+
+```bash
+./scripts/sync-server-to-local.sh
+```
+
+По умолчанию существующий локальный `upload/` не меняется. Полный перенос
+медиафайлов запускается явно:
+
+```bash
+./scripts/sync-server-to-local.sh --with-upload
+```
+
+SSH запросит пароль один раз. Подробности, исключения и требования:
+[docs/LOCAL-SYNC.md](docs/LOCAL-SYNC.md).
+
 ---
 
-# Production на сервере с FASTPANEL/Nginx
+# Production на Debian с host-Nginx
 
 ## Существующие сайты на хосте
 
@@ -83,11 +104,11 @@ Compose не занимает публичные `80/443` и сам по себ�
 
 - установка `NGINX_BIND_ADDRESS=0.0.0.0`;
 - установка `HTTP_PORT=80` или `443` на уже занятом адресе;
-- запуск Traefik на тех же `80/443`, которые слушает FASTPANEL Nginx;
+- запуск Traefik на тех же `80/443`, которые слушает host-Nginx;
 - одновременное включение старого и нового virtual host с одинаковым
   `server_name`.
 
-Для текущего сервера оставьте `EDGE_MODE=host-nginx`. FASTPANEL Nginx принимает
+Для текущего сервера оставьте `EDGE_MODE=host-nginx`. Хостовый Nginx принимает
 HTTPS и проксирует только Finntrail в Docker. Остальные сайты продолжают
 обслуживаться как раньше.
 
@@ -99,7 +120,7 @@ sudo install -d -o "$USER" -g "$USER" \
   /srv/bitrix-prod/www/public_html \
   /srv/bitrix-prod/backups
 
-git clone https://github.com/AntonTolkushkin/env-docker.git \
+git clone https://github.com/AntonTolkushkin/finntrail-docker.git \
   /srv/bitrix-prod/env-docker
 cd /srv/bitrix-prod/env-docker
 ./scripts/init-env.sh production
@@ -165,7 +186,7 @@ sudo install -d -o "$USER" -g "$USER" \
   /srv/bitrix-dev/www \
   /srv/bitrix-dev/backups
 
-git clone https://github.com/AntonTolkushkin/env-docker.git \
+git clone https://github.com/AntonTolkushkin/finntrail-docker.git \
   /srv/bitrix-dev/env-docker
 cd /srv/bitrix-dev/env-docker
 ./scripts/init-env.sh development
@@ -187,7 +208,7 @@ MYSQL_DATABASE=bitrix_dev
 
 `init-env.sh development`:
 
-1. создаёт отдельные пароли MariaDB и Redis;
+1. создаёт отдельные пароли Percona и Redis;
 2. генерирует Basic Auth для всех dev-доменов;
 3. создаёт каталоги `dev`, `dev1`, `dev2`;
 4. создаёт в `dev1/dev2` симлинки `bitrix` и `upload` на основной `dev`.
@@ -254,9 +275,9 @@ Composer уже находится в PHP-образе и использует �
 
 # Настройка производительности
 
-Production-профиль перенёс важные параметры текущего сервера:
+Production-профиль содержит важные параметры текущего сервера:
 
-- MariaDB buffer pool `10G`, `150` connections и `READ-COMMITTED`;
+- Percona buffer pool `10G`, `150` connections и `READ-COMMITTED`;
 - PHP-FPM dynamic, до `60` workers по умолчанию;
 - PHP `memory_limit=1024M`, upload/post до `1024M`;
 - расширенный OPcache и Redis-сессии;
@@ -272,7 +293,7 @@ pm.max_children = доступная_память_для_PHP / P95_RSS_одно�
 ```
 
 До переключения production выполните нагрузочный тест и наблюдайте OOM,
-load average, очередь PHP-FPM, slow PHP log, MariaDB buffer pool и slow queries.
+load average, очередь PHP-FPM, slow PHP log и Percona buffer pool.
 Ни одна статическая конфигурация не может гарантировать пиковую
 производительность без характеристик сервера и профиля запросов.
 
@@ -304,10 +325,10 @@ load average, очередь PHP-FPM, slow PHP log, MariaDB buffer pool и slow 
 ./scripts/restore-db.sh --replace-database /path/to/dump.sql.gz
 ```
 
-Никогда не подключайте volume Percona/MySQL 8 напрямую к MariaDB. Новая версия
-Compose намеренно использует volume `mariadb_data` вместо старого
-`mysql_data`: старый volume сохраняется, но не подключается. Создайте SQL dump
-старой БД и импортируйте его в новый пустой MariaDB volume.
+Никогда не подключайте старый volume MariaDB напрямую к Percona/MySQL 8.
+Compose использует отдельные volumes `percona_data` и `percona_log_data`.
+Для переноса создайте SQL dump исходной БД и импортируйте его через
+`scripts/restore-db.sh`.
 
 ---
 
@@ -330,8 +351,12 @@ server/proxy; `10051/tcp` нужен как исходящее направле�
 ./scripts/compose.sh down
 ```
 
-`down` сохраняет volumes. `down -v` удаляет MariaDB, Redis и остальные данные;
+`down` сохраняет volumes. `down -v` удаляет Percona, Redis и остальные данные;
 не выполняйте его на сервере без проверенной внешней резервной копии.
+
+Подготовка независимого репозитория и перенос в
+`AntonTolkushkin/finntrail-docker` описаны в
+[docs/REPOSITORY-MOVE.md](docs/REPOSITORY-MOVE.md).
 
 Секреты `.env`, Basic Auth, сертификаты, файлы сайта, дампы и архивы исключены
 из Git.

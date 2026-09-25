@@ -42,26 +42,27 @@ if [ "$REPLACE_DATABASE" -eq 1 ]; then
     # A strict identifier check makes the quoted DROP/CREATE operation safe.
     # shellcheck disable=SC2016
     "$ROOT_DIR/scripts/compose.sh" exec -T mysql sh -ec '
-        case "$MARIADB_DATABASE" in
-            ""|*[!A-Za-z0-9_]*) echo "Unsafe MARIADB_DATABASE" >&2; exit 1 ;;
+        case "$MYSQL_DATABASE" in
+            ""|*[!A-Za-z0-9_]*) echo "Unsafe MYSQL_DATABASE" >&2; exit 1 ;;
         esac
-        mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" -e \
-          "DROP DATABASE IF EXISTS \`$MARIADB_DATABASE\`; CREATE DATABASE \`$MARIADB_DATABASE\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+        export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"
+        mysql --protocol=socket -uroot -e \
+          "DROP DATABASE IF EXISTS \`$MYSQL_DATABASE\`; CREATE DATABASE \`$MYSQL_DATABASE\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
     '
 fi
 
 case "$DUMP_FILE" in
     *.gz)
-        # Expanded by the shell inside the MariaDB container.
+        # Expanded by the shell inside the Percona container.
         # shellcheck disable=SC2016
         gzip -dc "$DUMP_FILE" | "$ROOT_DIR/scripts/compose.sh" exec -T mysql sh -ec \
-            'exec mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE"'
+            'export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysql --protocol=socket -uroot "$MYSQL_DATABASE"'
         ;;
     *)
-        # Expanded by the shell inside the MariaDB container.
+        # Expanded by the shell inside the Percona container.
         # shellcheck disable=SC2016
         "$ROOT_DIR/scripts/compose.sh" exec -T mysql sh -ec \
-            'exec mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE"' < "$DUMP_FILE"
+            'export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysql --protocol=socket -uroot "$MYSQL_DATABASE"' < "$DUMP_FILE"
         ;;
 esac
 
